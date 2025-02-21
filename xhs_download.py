@@ -1,7 +1,7 @@
 from source import XHS
 
 
-async def download_task(demo_link):
+async def download_task(note_link) -> list[dict]:
     """通过代码设置参数，适合二次开发"""   
 
     # 实例对象
@@ -50,4 +50,5 @@ async def download_task(demo_link):
         download = True  # 是否下载作品文件，默认值：False
         # 返回作品详细信息，包括下载地址
         # 获取数据失败时返回空字典
-        print(await xhs.extract(demo_link, download, index=[1, 2]))
+        result = await xhs.extract(note_link, download, index=[1, 2])
+        return result

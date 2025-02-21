@@ -56,11 +56,59 @@ def check_and_wait_for_login(driver):
         except Exception as e:
             print(f"点击登录按钮时出错: {e}")
 
+# 提取脚本数据
+def extract_script_data(driver, element_id):
+    try:
+        # 最多等待 2 秒，直到至少有一个 <script> 标签被找到
+        WebDriverWait(driver, 2).until(
+            EC.presence_of_element_located((By.TAG_NAME, 'script'))
+        )
+
+        # 获取所有script标签的内容
+        scripts = driver.find_elements("tag name", "script")
+        data = None        
+        for script in scripts:
+            script_content = script.get_attribute("innerHTML")
+            if "window.__INITIAL_STATE__" in script_content:
+                json_str = script_content.replace("window.__INITIAL_STATE__=", "")
+                # 处理JavaScript中的undefined（替换为null）
+                json_str = json_str.replace("undefined", "null")
+                # 解析为Python字典
+                data = json.loads(json_str)
+                break  # 找到后退出循环        
+        
+        # 提取示例数据（例如global.appSettings）
+        if data:
+            noteDetail = data.get("note", {}).get("noteDetailMap", {}).get(element_id, {}).get("note", {})
+            return noteDetail
+        else:
+            print("未找到目标数据")        
+    except Exception as e:
+        print(f"发生错误: {e}")
+
 # 提取页面数据
-def print_page_info(driver):
+def extract_page_info(driver, element_id, new_page: bool = True):
     # 获取当前页面的 URL
     current_url = driver.current_url
-    print(f"当前页面 URL: {current_url}")
+    print(f"当前页面 URL: {current_url}")    
+
+    # 打印脚本数据
+    noteDetail = None
+    if new_page: 
+        noteDetail = extract_script_data(driver, element_id)
+    else:
+        time.sleep(2)
+        # 从浏览器监控日志获取网络数据
+        logs = driver.get_log('performance')
+        for log in logs:
+            response_data = handle_response(driver, log)
+            if response_data != None:
+                item = response_data.get('data', {}).get('items', [])[0]
+                print(item)
+                if item.get('id') == element_id:
+                    noteDetail = item.get("note_card", {})
+                    break
+
     username = ''
     title = ''
     desc_text = ''
@@ -101,7 +149,8 @@ def print_page_info(driver):
         tags = [tag.text for tag in tag_elements]
         tags_str = ', '.join(tags)
     except Exception as e:
-        print("无标签")
+        print("无标签")    
+   
 
     # 创建一个字典来存储这些参数
     data = {
@@ -109,13 +158,16 @@ def print_page_info(driver):
         "username": username,
         "title": title,
         "desc_text": desc_text,
-        "tags_str": tags_str
+        "tags_str": tags_str,
+        "noteDetail": noteDetail
     }
     return data
 
 # 详情页处理
-async def process_detail_page(driver, node_item_element, processed_elements):
+async def process_detail_page(driver, node_item_element, processed_elements, new_page: bool = True):
     try:
+        element_id = ""
+
         link_element = node_item_element.find_element(By.CSS_SELECTOR, 'div a.cover.ld.mask')
         # 获取链接
         link_url = link_element.get_attribute('href')
@@ -173,26 +225,39 @@ async def process_detail_page(driver, node_item_element, processed_elements):
 
         if like_count > 3000:
             print(f"点赞数：{like_count}")                    
+            
+            if new_page:
+                # 浏览器新标签方式打开：在新标签中打开详情页链接
+                driver.execute_script(f"window.open('{link_url}', '_blank');")
+                # 切换到新打开的标签页
+                driver.switch_to.window(driver.window_handles[-1])
+            else:
+                # 弹窗方式打开：点击链接打开内容详情页弹框
+                link_element.click()
+            
+            data = extract_page_info(driver, element_id, new_page)
 
-            # 点击链接打开内容详情页弹框
-            link_element.click()
 
-            # 在新标签中打开详情页链接
-            # driver.execute_script(f"window.open('{link_url}', '_blank');")
-            # 切换到新打开的标签页
-            # driver.switch_to.window(driver.window_handles[-1])
-
-            data = print_page_info(driver)
-
+            downLoad = False
+            if data["noteDetail"] != None:
+                noteDetail = data["noteDetail"]
+                if noteDetail.get("type","") == "video":
+                    duration = noteDetail.get("video", {}).get("capa", {}).get("duration")
+                    if duration < 50:
+                        downLoad = True
+                            
             # 将字典转换为 JSON 字符串
             json_str = json.dumps(data, ensure_ascii=False)
 
             print(f"笔记数据：{json_str}")
 
-            try:
-                await download_task(data["current_url"])
-            except Exception as e:
-                print("下载失败")    
+            if downLoad:
+                try:
+                    download_data = await download_task(data["current_url"])
+                    print(download_data)
+                    print("--------------------------------")
+                except Exception as e:
+                    print("下载失败")
 
             # 滚动评论
             note_scroller_element = driver.find_element(By.CSS_SELECTOR, 'div.note-scroller')
@@ -217,20 +282,21 @@ async def process_detail_page(driver, node_item_element, processed_elements):
 
                 time.sleep(random.uniform(1,3))
 
-            # 关闭浏览器详情页链接标签
-            # driver.close()
-            # 切换回列表页
-            # driver.switch_to.window(driver.window_handles[0])
-
-            # 关闭详情弹框
-            try:
-                close_quit_button = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div.close-circle"))
-                )
-                close_quit_button.click()
-                print("关闭弹框成功")
-            except Exception as e:
-                print(f"关闭弹框时出错: {e}")
+            if new_page:
+                # 关闭浏览器详情页链接标签
+                driver.close()
+                # 切换回列表页
+                driver.switch_to.window(driver.window_handles[0])
+            else:
+                # 关闭详情弹框
+                try:
+                    close_quit_button = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.CSS_SELECTOR, "div.close-circle"))
+                    )
+                    close_quit_button.click()
+                    print("关闭弹框成功")
+                except Exception as e:
+                    print(f"关闭弹框时出错: {e}")
 
             print("======================================================")
         time.sleep(random.uniform(1, 3))        
@@ -239,6 +305,27 @@ async def process_detail_page(driver, node_item_element, processed_elements):
     finally:
         pass    
 
+# 定义处理网络响应的回调函数
+def handle_response(driver, log):
+    try:
+        message = json.loads(log['message'])['message']
+        if message['method'] == 'Network.responseReceived':
+            response_data = message['params']['response']
+            if response_data['url'] == 'https://edith.xiaohongshu.com/api/sns/web/v1/feed':
+                request_id = message['params']['requestId']
+                try:
+                    # 获取响应体
+                    body = driver.execute_cdp_cmd('Network.getResponseBody', {'requestId': request_id})
+                    # 解析响应体为 JSON 数据
+                    json_data = json.loads(body['body'])
+                    return json_data
+                except json.JSONDecodeError:
+                    print("响应体不是有效的 JSON 格式。")
+                except Exception as e:
+                    print(f"Error getting response body for requestId {request_id}")
+    except (KeyError, json.JSONDecodeError):
+        pass
+
 async def process_page():
     # 指定 ChromeDriver 的路径
     chrome_driver_path = r'C:\huyang\huyang\chromedriver\chromedriver.exe'
@@ -246,7 +333,8 @@ async def process_page():
 
     # 创建 Chrome 选项
     chrome_options = Options()
-    # 禁用浏览器的自动关闭功能
+    chrome_options.add_experimental_option('perfLoggingPrefs', {'enableNetwork': True})
+    chrome_options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})    # 禁用浏览器的自动关闭功能
     chrome_options.add_experimental_option("detach", True)
 
     # 创建 Chrome 浏览器实例
@@ -271,7 +359,7 @@ async def process_page():
             print(f"找到了 {element_count} 元素")        
 
             for node_item_element in node_item_elements:
-                await process_detail_page(driver, node_item_element, processed_elements)                        
+                await process_detail_page(driver, node_item_element, processed_elements, False)                        
 
             if len(processed_elements) > 200:
                 processed_elements.clear()
