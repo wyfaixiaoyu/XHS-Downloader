@@ -1,13 +1,11 @@
 from contextlib import suppress
 from pathlib import Path
 
-
 def file_switch(path: Path) -> None:
     if path.exists():
         path.unlink()
     else:
         path.touch()
-
 
 def remove_empty_directories(path: Path) -> None:
     exclude = {
@@ -15,9 +13,12 @@ def remove_empty_directories(path: Path) -> None:
         "\\_",
         "\\__",
     }
-    for dir_path, dir_names, file_names in path.walk(top_down=False, ):
-        if any(i in str(dir_path) for i in exclude):
-            continue
-        if not dir_names and not file_names:
-            with suppress(OSError):
-                dir_path.rmdir()
+    # 遍历所有目录
+    for sub_path in path.rglob(''):
+        if sub_path.is_dir():
+            if any(i in str(sub_path) for i in exclude):
+                continue
+            # 检查目录是否为空
+            if not any(sub_path.iterdir()):
+                with suppress(OSError):
+                    sub_path.rmdir()

@@ -1,12 +1,8 @@
-from asyncio import run
-
 from source import XHS
 
 
-async def example():
-    """通过代码设置参数，适合二次开发"""
-    # 示例链接
-    demo_link = "https://www.xiaohongshu.com/explore/XXX?xsec_token=XXX"
+async def download_task(demo_link):
+    """通过代码设置参数，适合二次开发"""   
 
     # 实例对象
     work_path = "D:\\"  # 作品数据/文件保存根路径，默认值：项目根路径
@@ -55,14 +51,3 @@ async def example():
         # 返回作品详细信息，包括下载地址
         # 获取数据失败时返回空字典
         print(await xhs.extract(demo_link, download, index=[1, 2]))
-
-
-async def test():
-    url = ""
-    async with XHS() as xhs:
-        print(await xhs.extract(url))
-
-
-if __name__ == "__main__":
-    # run(example())
-    run(test())

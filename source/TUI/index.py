@@ -86,9 +86,7 @@ class Index(Screen):
         self.tip.write(
             Text(
                 _("免责声明\n") +
-                f"\n{
-                ">" *
-                50}",
+                f'\n{">" *50}',
                 style=MASTER),
             scroll_end=True,
         )

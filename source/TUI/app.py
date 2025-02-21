@@ -60,9 +60,7 @@ class XHSDownloader(App):
             logging,
             self.query_one(RichLog),
             _("配置文件 settings.json 缺少必要的参数，请删除该文件，然后重新运行程序，自动生成默认配置文件！") +
-            f"\n{
-            ">" *
-            50}",
+            f'\n{">" * 50}',
             ERROR,
         )
 

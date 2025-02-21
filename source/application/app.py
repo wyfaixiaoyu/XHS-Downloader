@@ -152,6 +152,8 @@ class XHS:
             bar,
     ):
         name = self.__naming_rules(container)
+        # 采用id作为文件名称 huyang 2025-02-21
+        name = container["作品ID"]
         if (u := container["下载地址"]) and download:
             if await self.skip_download(i := container["作品ID"]):
                 logging(

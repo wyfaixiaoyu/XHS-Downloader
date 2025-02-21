@@ -4,8 +4,7 @@ VERSION_MAJOR = 2
 VERSION_MINOR = 5
 VERSION_BETA = True
 ROOT = Path(__file__).resolve().parent.parent.parent
-PROJECT = f"XHS-Downloader V{VERSION_MAJOR}.{
-VERSION_MINOR} {"Beta" if VERSION_BETA else "Stable"}"
+PROJECT = f'XHS-Downloader V{VERSION_MAJOR}.{VERSION_MINOR} {"Beta" if VERSION_BETA else "Stable"}'
 
 REPOSITORY = "https://github.com/JoeanAmier/XHS-Downloader"
 LICENCE = "GNU General Public License v3.0"
